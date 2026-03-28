@@ -71,6 +71,7 @@ void OptionsWindow::RefreshFromConfig() {
     ::SetWindowTextW(horizontal_padding_edit_, std::to_wstring(config.horizontal_padding).c_str());
     Button_SetCheck(aggregate_check_,
                     config.aggregate_connected_interfaces ? BST_CHECKED : BST_UNCHECKED);
+    Button_SetCheck(autostart_check_, config.auto_start ? BST_CHECKED : BST_UNCHECKED);
     selected_font_color_ = static_cast<COLORREF>(config.font_color_rgb);
     selected_bar_color_ = static_cast<COLORREF>(config.progress_color_rgb);
     UpdateColorButtonText();
@@ -270,7 +271,21 @@ void OptionsWindow::CreateChildControls() {
         instance_,
         nullptr);
 
-    create_label(IDS_OPTIONS_FONT_COLOR, 24, 132, 80, 24, -1);
+    autostart_check_ = ::CreateWindowExW(
+        0,
+        L"BUTTON",
+        LoadStringResource(instance_, IDS_OPTIONS_AUTOSTART).c_str(),
+        WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX,
+        24,
+        126,
+        560,
+        24,
+        hwnd_,
+        reinterpret_cast<HMENU>(static_cast<INT_PTR>(IDC_AUTOSTART_CHECK)),
+        instance_,
+        nullptr);
+
+    create_label(IDS_OPTIONS_FONT_COLOR, 24, 166, 80, 24, -1);
 
     font_color_button_ = ::CreateWindowExW(
         0,
@@ -278,7 +293,7 @@ void OptionsWindow::CreateChildControls() {
         LoadStringResource(instance_, IDS_OPTIONS_PICK_COLOR).c_str(),
         WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
         112,
-        128,
+        162,
         150,
         28,
         hwnd_,
@@ -286,7 +301,7 @@ void OptionsWindow::CreateChildControls() {
         instance_,
         nullptr);
 
-    create_label(IDS_OPTIONS_BAR_COLOR, 290, 132, 90, 24, -1);
+    create_label(IDS_OPTIONS_BAR_COLOR, 290, 166, 90, 24, -1);
 
     bar_color_button_ = ::CreateWindowExW(
         0,
@@ -294,7 +309,7 @@ void OptionsWindow::CreateChildControls() {
         LoadStringResource(instance_, IDS_OPTIONS_PICK_COLOR).c_str(),
         WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
         386,
-        128,
+        162,
         150,
         28,
         hwnd_,
@@ -302,8 +317,8 @@ void OptionsWindow::CreateChildControls() {
         instance_,
         nullptr);
 
-    status_static_ = create_label(IDS_OPTIONS_STATUS, 24, 234, 420, 20, IDC_STATUS_STATIC);
-    future_static_ = create_label(IDS_OPTIONS_FUTURE, 24, 258, 450, 52, IDC_FUTURE_STATIC);
+    status_static_ = create_label(IDS_OPTIONS_STATUS, 24, 268, 420, 20, IDC_STATUS_STATIC);
+    future_static_ = create_label(IDS_OPTIONS_FUTURE, 24, 292, 450, 52, IDC_FUTURE_STATIC);
 
     apply_button_ = ::CreateWindowExW(
         0,
@@ -349,7 +364,8 @@ void OptionsWindow::CreateChildControls() {
 
     const HWND controls[] = {interval_edit_, font_size_edit_, line_height_edit_, bottom_padding_edit_,
                              horizontal_padding_edit_,
-                             aggregate_check_, status_static_, future_static_, font_color_button_,
+                             aggregate_check_, autostart_check_, status_static_, future_static_,
+                             font_color_button_,
                              bar_color_button_, apply_button_, save_button_, cancel_button_};
     for (HWND control : controls) {
         ::SendMessageW(control, WM_SETFONT, reinterpret_cast<WPARAM>(font_), TRUE);
@@ -441,6 +457,7 @@ AppConfig OptionsWindow::ReadControls() const {
 
     config.aggregate_connected_interfaces =
         (Button_GetCheck(aggregate_check_) == BST_CHECKED);
+    config.auto_start = (Button_GetCheck(autostart_check_) == BST_CHECKED);
     config.font_color_rgb = selected_font_color_;
     config.progress_color_rgb = selected_bar_color_;
 

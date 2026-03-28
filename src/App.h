@@ -28,6 +28,8 @@ public:
     const AppConfig& GetConfig() const { return config_; }
 
 private:
+    void SyncAutoStart() const;
+
     HINSTANCE instance_ = nullptr;
     std::wstring module_path_;
     AppConfig config_{};

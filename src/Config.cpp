@@ -31,6 +31,7 @@ bool ParseBool(const std::wstring& value, bool default_value) {
 bool AppConfig::operator==(const AppConfig& other) const {
     return update_interval_ms == other.update_interval_ms &&
            aggregate_connected_interfaces == other.aggregate_connected_interfaces &&
+           auto_start == other.auto_start &&
            font_size == other.font_size &&
            font_color_rgb == other.font_color_rgb &&
            bottom_padding == other.bottom_padding &&
@@ -73,6 +74,8 @@ bool ConfigManager::Load(AppConfig& config) const {
         } else if (key == L"aggregate_connected_interfaces") {
             loaded.aggregate_connected_interfaces =
                 ParseBool(value, loaded.aggregate_connected_interfaces);
+        } else if (key == L"auto_start") {
+            loaded.auto_start = ParseBool(value, loaded.auto_start);
         } else if (key == L"font_size") {
             try {
                 loaded.font_size = std::stoi(value);
@@ -167,6 +170,7 @@ std::wstring ConfigManager::BuildContent(const AppConfig& config) const {
     content << L"update_interval_ms=" << config.update_interval_ms << L"\n";
     content << L"aggregate_connected_interfaces="
             << (config.aggregate_connected_interfaces ? L"true" : L"false") << L"\n";
+    content << L"auto_start=" << (config.auto_start ? L"true" : L"false") << L"\n";
     content << L"font_size=" << config.font_size << L"\n";
     content << L"font_color_rgb=" << config.font_color_rgb << L"\n";
     content << L"bottom_padding=" << config.bottom_padding << L"\n";

@@ -1,4 +1,4 @@
-#pragma code_page(65001)
+﻿#pragma code_page(65001)
 #include <windows.h>
 #include "..\\src\\resource.h"
 
@@ -37,4 +37,5 @@ BEGIN
     IDS_APP_ALREADY_RUNNING, "程序已在运行，不能同时启动多个实例。"
     IDS_OPTIONS_APPLY, "应用"
     IDS_OPTIONS_HORIZONTAL_PADDING, "左右内边距（0-24）"
+    IDS_OPTIONS_AUTOSTART, "开机自启"
 END

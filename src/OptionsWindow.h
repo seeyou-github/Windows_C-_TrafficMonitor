@@ -46,6 +46,7 @@ private:
     HWND line_height_edit_ = nullptr;
     HWND horizontal_padding_edit_ = nullptr;
     HWND aggregate_check_ = nullptr;
+    HWND autostart_check_ = nullptr;
     HWND status_static_ = nullptr;
     HWND future_static_ = nullptr;
     HWND font_color_button_ = nullptr;

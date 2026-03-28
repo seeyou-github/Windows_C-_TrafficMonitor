@@ -5,6 +5,7 @@
 struct AppConfig {
     int update_interval_ms = 1000;
     bool aggregate_connected_interfaces = true;
+    bool auto_start = true;
     int font_size = 11;
     unsigned int font_color_rgb = 0x009BA6AB;
     int bottom_padding = 1;
