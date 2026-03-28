@@ -15,6 +15,22 @@ namespace {
 
 constexpr COLORREF kBackgroundColor = RGB(26, 26, 28);
 
+struct SpeedDisplay {
+    double value = 0.0;
+    const wchar_t* unit = L"K/s";
+};
+
+SpeedDisplay GetSpeedDisplay(double bytes_per_sec) {
+    const double value_k = std::max(0.0, bytes_per_sec) / 1024.0;
+    if (value_k >= 1024.0) {
+        return SpeedDisplay{value_k / 1024.0, L"M/s"};
+    }
+    if (value_k < 0.1) {
+        return SpeedDisplay{0.0, L"K/s"};
+    }
+    return SpeedDisplay{value_k, L"K/s"};
+}
+
 HICON LoadAppIcon(HINSTANCE instance, bool small_icon) {
     return static_cast<HICON>(::LoadImageW(instance,
                                            MAKEINTRESOURCEW(IDI_APP_ICON),
@@ -369,32 +385,19 @@ void TaskbarWidget::DrawUsageBar(HDC dc, const BarMetrics& metrics) const {
 }
 
 std::wstring TaskbarWidget::FormatSpeed(double bytes_per_sec) const {
-    double value_k = std::max(0.0, bytes_per_sec) / 1024.0;
-    double display_value = value_k;
-    if (value_k >= 1024.0) {
-        display_value = value_k / 1024.0;
-    } else if (value_k < 0.1) {
-        display_value = 0.0;
-    }
+    const SpeedDisplay display = GetSpeedDisplay(bytes_per_sec);
 
     wchar_t buffer[64]{};
-    if (display_value >= 10.0) {
-        swprintf_s(buffer, L"%.0f", std::round(display_value));
+    if (display.value >= 10.0) {
+        swprintf_s(buffer, L"%.0f", std::round(display.value));
     } else {
-        swprintf_s(buffer, L"%.1f", display_value);
+        swprintf_s(buffer, L"%.1f", display.value);
     }
     return buffer;
 }
 
 std::wstring TaskbarWidget::FormatSpeedUnit(double bytes_per_sec) const {
-    const double value_k = std::max(0.0, bytes_per_sec) / 1024.0;
-    if (value_k >= 1024.0) {
-        return L"M/s";
-    }
-    if (value_k < 0.1) {
-        return L"K/b";
-    }
-    return L"K/s";
+    return GetSpeedDisplay(bytes_per_sec).unit;
 }
 
 void TaskbarWidget::EnsureTimer() {
