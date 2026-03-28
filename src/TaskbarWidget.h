@@ -48,6 +48,7 @@ private:
     void DrawTextWithShadow(HDC dc, const std::wstring& text, RECT rect, UINT format, COLORREF text_color) const;
     bool IsHorizontalTaskbar() const;
     void RecreateFont();
+    void UpdateBrushes();
 
     App& app_;
     HINSTANCE instance_ = nullptr;
@@ -58,13 +59,16 @@ private:
     MonitorService monitor_;
     SystemSnapshot snapshot_{};
     HFONT font_ = nullptr;
-    HBRUSH background_brush_ = nullptr;
+    HBRUSH sampled_background_brush_ = nullptr;
+    HBRUSH bar_background_brush_ = nullptr;
+    HBRUSH bar_fill_brush_ = nullptr;
     COLORREF sampled_background_color_ = RGB(26, 26, 28);
     COLORREF primary_text_color_ = RGB(184, 184, 188);
     COLORREF secondary_text_color_ = RGB(148, 148, 152);
     COLORREF shadow_text_color_ = RGB(0, 0, 0);
     COLORREF bar_background_color_ = RGB(26, 26, 28);
     COLORREF bar_fill_color_ = RGB(210, 52, 52);
+    ULONGLONG last_style_sample_tick_ = 0;
     int width_ = 176;
     int height_ = 98;
     bool horizontal_taskbar_ = true;

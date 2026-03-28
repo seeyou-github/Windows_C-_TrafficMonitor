@@ -2,6 +2,8 @@
 #include <windows.h>
 #include "..\\src\\resource.h"
 
+IDI_APP_ICON ICON "icon.ico"
+
 IDR_MAIN_MENU MENU
 BEGIN
     POPUP ""
@@ -38,4 +40,5 @@ BEGIN
     IDS_OPTIONS_APPLY, "应用"
     IDS_OPTIONS_HORIZONTAL_PADDING, "左右内边距（0-24）"
     IDS_OPTIONS_AUTOSTART, "开机自启"
+    IDS_OPTIONS_SAVE_FAILED, "配置已应用，但保存配置或更新开机自启失败。"
 END

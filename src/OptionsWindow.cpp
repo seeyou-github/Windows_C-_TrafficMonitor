@@ -11,6 +11,21 @@
 OptionsWindow::OptionsWindow(App& app) : app_(app) {
 }
 
+namespace {
+
+HICON LoadAppIcon(HINSTANCE instance, bool small_icon) {
+    return static_cast<HICON>(::LoadImageW(instance,
+                                           MAKEINTRESOURCEW(IDI_APP_ICON),
+                                           IMAGE_ICON,
+                                           small_icon ? ::GetSystemMetrics(SM_CXSMICON)
+                                                      : ::GetSystemMetrics(SM_CXICON),
+                                           small_icon ? ::GetSystemMetrics(SM_CYSMICON)
+                                                      : ::GetSystemMetrics(SM_CYICON),
+                                           LR_DEFAULTCOLOR));
+}
+
+}  // namespace
+
 bool OptionsWindow::Create(HINSTANCE instance) {
     instance_ = instance;
 
@@ -21,6 +36,8 @@ bool OptionsWindow::Create(HINSTANCE instance) {
     wc.lpszClassName = L"TaskbarMonitorOptionsWindow";
     wc.hCursor = ::LoadCursorW(nullptr, IDC_ARROW);
     wc.hbrBackground = reinterpret_cast<HBRUSH>(COLOR_BTNFACE + 1);
+    wc.hIcon = LoadAppIcon(instance_, false);
+    wc.hIconSm = LoadAppIcon(instance_, true);
 
     ::RegisterClassExW(&wc);
 
@@ -37,6 +54,13 @@ bool OptionsWindow::Create(HINSTANCE instance) {
         nullptr,
         instance_,
         this);
+
+    if (hwnd_ != nullptr) {
+        HICON big_icon = LoadAppIcon(instance_, false);
+        HICON small_icon = LoadAppIcon(instance_, true);
+        ::SendMessageW(hwnd_, WM_SETICON, ICON_BIG, reinterpret_cast<LPARAM>(big_icon));
+        ::SendMessageW(hwnd_, WM_SETICON, ICON_SMALL, reinterpret_cast<LPARAM>(small_icon));
+    }
 
     return hwnd_ != nullptr;
 }
@@ -409,8 +433,11 @@ void OptionsWindow::ApplyConfigFromControls(bool close_after_apply) {
         return;
     }
 
-    app_.UpdateConfig(new_config);
-    UpdateStatusLabel(LoadStringResource(instance_, IDS_OPTIONS_SAVED));
+    if (app_.UpdateConfig(new_config)) {
+        UpdateStatusLabel(LoadStringResource(instance_, IDS_OPTIONS_SAVED));
+    } else {
+        UpdateStatusLabel(LoadStringResource(instance_, IDS_OPTIONS_SAVE_FAILED));
+    }
     if (close_after_apply) {
         Hide();
     }

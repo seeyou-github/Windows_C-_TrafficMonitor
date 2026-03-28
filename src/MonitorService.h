@@ -33,6 +33,8 @@ private:
     struct NetworkSample {
         std::uint64_t in_octets = 0;
         std::uint64_t out_octets = 0;
+        std::uint64_t source_key = 0;
+        bool aggregate_mode = true;
         ULONGLONG tick_ms = 0;
     };
 

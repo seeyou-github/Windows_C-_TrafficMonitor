@@ -14,7 +14,17 @@
 namespace {
 
 constexpr COLORREF kBackgroundColor = RGB(26, 26, 28);
-constexpr COLORREF kTransparentColor = RGB(255, 0, 255);
+
+HICON LoadAppIcon(HINSTANCE instance, bool small_icon) {
+    return static_cast<HICON>(::LoadImageW(instance,
+                                           MAKEINTRESOURCEW(IDI_APP_ICON),
+                                           IMAGE_ICON,
+                                           small_icon ? ::GetSystemMetrics(SM_CXSMICON)
+                                                      : ::GetSystemMetrics(SM_CXICON),
+                                           small_icon ? ::GetSystemMetrics(SM_CYSMICON)
+                                                      : ::GetSystemMetrics(SM_CYICON),
+                                           LR_DEFAULTCOLOR));
+}
 
 HFONT CreateTaskbarFont(int font_size) {
     LOGFONTW font{};
@@ -39,8 +49,14 @@ TaskbarWidget::~TaskbarWidget() {
     if (font_ != nullptr) {
         ::DeleteObject(font_);
     }
-    if (background_brush_ != nullptr) {
-        ::DeleteObject(background_brush_);
+    if (sampled_background_brush_ != nullptr) {
+        ::DeleteObject(sampled_background_brush_);
+    }
+    if (bar_background_brush_ != nullptr) {
+        ::DeleteObject(bar_background_brush_);
+    }
+    if (bar_fill_brush_ != nullptr) {
+        ::DeleteObject(bar_fill_brush_);
     }
 }
 
@@ -53,11 +69,13 @@ bool TaskbarWidget::Create(HINSTANCE instance) {
     wc.hInstance = instance_;
     wc.lpszClassName = L"TaskbarMonitorWidgetWindow";
     wc.hCursor = ::LoadCursorW(nullptr, IDC_ARROW);
+    wc.hIcon = LoadAppIcon(instance_, false);
+    wc.hIconSm = LoadAppIcon(instance_, true);
 
     ::RegisterClassExW(&wc);
 
-    background_brush_ = ::CreateSolidBrush(kBackgroundColor);
     RecreateFont();
+    UpdateBrushes();
 
     hwnd_ = ::CreateWindowExW(
         WS_EX_TOOLWINDOW,
@@ -73,6 +91,13 @@ bool TaskbarWidget::Create(HINSTANCE instance) {
         instance_,
         this);
 
+    if (hwnd_ != nullptr) {
+        HICON big_icon = LoadAppIcon(instance_, false);
+        HICON small_icon = LoadAppIcon(instance_, true);
+        ::SendMessageW(hwnd_, WM_SETICON, ICON_BIG, reinterpret_cast<LPARAM>(big_icon));
+        ::SendMessageW(hwnd_, WM_SETICON, ICON_SMALL, reinterpret_cast<LPARAM>(small_icon));
+    }
+
     return hwnd_ != nullptr;
 }
 
@@ -85,12 +110,17 @@ void TaskbarWidget::Show() {
 void TaskbarWidget::Refresh() {
     snapshot_ = monitor_.Sample(app_.GetConfig().aggregate_connected_interfaces);
     UpdateTaskbarPlacement();
-    UpdateVisualStyleFromTaskbar();
+    const ULONGLONG now = ::GetTickCount64();
+    if (now - last_style_sample_tick_ >= 2000 || last_style_sample_tick_ == 0) {
+        UpdateVisualStyleFromTaskbar();
+        last_style_sample_tick_ = now;
+    }
     ::InvalidateRect(hwnd_, nullptr, FALSE);
 }
 
 void TaskbarWidget::ApplyConfig() {
     RecreateFont();
+    last_style_sample_tick_ = 0;
     EnsureTimer();
     Refresh();
 }
@@ -254,9 +284,7 @@ void TaskbarWidget::Paint(HDC dc) {
     const int horizontal_padding = app_.GetConfig().horizontal_padding;
     const int content_bottom = std::max(client.top, client.bottom - bottom_padding);
 
-    HBRUSH fill_brush = ::CreateSolidBrush(sampled_background_color_);
-    ::FillRect(dc, &client, fill_brush);
-    ::DeleteObject(fill_brush);
+    ::FillRect(dc, &client, sampled_background_brush_);
     ::SetBkMode(dc, TRANSPARENT);
     ::SetTextColor(dc, primary_text_color_);
     ::SelectObject(dc, font_);
@@ -299,9 +327,7 @@ void TaskbarWidget::Paint(HDC dc) {
 }
 
 void TaskbarWidget::DrawSpeedLine(HDC dc, const RECT& rect) const {
-    HBRUSH background_brush = ::CreateSolidBrush(sampled_background_color_);
-    ::FillRect(dc, &rect, background_brush);
-    ::DeleteObject(background_brush);
+    ::FillRect(dc, &rect, sampled_background_brush_);
 
     const bool is_upload_line = (rect.top < 12);
     const double speed = is_upload_line ? snapshot_.upload_bytes_per_sec : snapshot_.download_bytes_per_sec;
@@ -320,9 +346,7 @@ void TaskbarWidget::DrawSpeedLine(HDC dc, const RECT& rect) const {
 
 void TaskbarWidget::DrawUsageBar(HDC dc, const BarMetrics& metrics) const {
     RECT bar = metrics.rect;
-    HBRUSH bar_background_brush = ::CreateSolidBrush(bar_background_color_);
-    ::FillRect(dc, &bar, bar_background_brush);
-    ::DeleteObject(bar_background_brush);
+    ::FillRect(dc, &bar, bar_background_brush_);
 
     RECT fill = bar;
     fill.top += 1;
@@ -331,9 +355,7 @@ void TaskbarWidget::DrawUsageBar(HDC dc, const BarMetrics& metrics) const {
     fill.left += 0;
     fill.right = fill.left + (inner_width * std::clamp(metrics.percent, 0, 100)) / 100;
     if (fill.right > fill.left) {
-        HBRUSH fill_brush = ::CreateSolidBrush(bar_fill_color_);
-        ::FillRect(dc, &fill, fill_brush);
-        ::DeleteObject(fill_brush);
+        ::FillRect(dc, &fill, bar_fill_brush_);
     }
 
     RECT text_rect = bar;
@@ -404,6 +426,7 @@ void TaskbarWidget::UpdateVisualStyleFromTaskbar() {
         bar_background_color_ = sampled_background_color_;
         bar_fill_color_ = static_cast<COLORREF>(app_.GetConfig().progress_color_rgb);
     }
+    UpdateBrushes();
 }
 
 COLORREF TaskbarWidget::SampleTaskbarColor() const {
@@ -503,4 +526,20 @@ void TaskbarWidget::RecreateFont() {
         font_ = nullptr;
     }
     font_ = CreateTaskbarFont(app_.GetConfig().font_size + 5);
+}
+
+void TaskbarWidget::UpdateBrushes() {
+    if (sampled_background_brush_ != nullptr) {
+        ::DeleteObject(sampled_background_brush_);
+    }
+    if (bar_background_brush_ != nullptr) {
+        ::DeleteObject(bar_background_brush_);
+    }
+    if (bar_fill_brush_ != nullptr) {
+        ::DeleteObject(bar_fill_brush_);
+    }
+
+    sampled_background_brush_ = ::CreateSolidBrush(sampled_background_color_);
+    bar_background_brush_ = ::CreateSolidBrush(bar_background_color_);
+    bar_fill_brush_ = ::CreateSolidBrush(bar_fill_color_);
 }

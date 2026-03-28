@@ -20,7 +20,6 @@ App::~App() = default;
 
 bool App::Initialize() {
     config_manager_.Load(config_);
-    SyncAutoStart();
 
     taskbar_widget_ = std::make_unique<TaskbarWidget>(*this);
     options_window_ = std::make_unique<OptionsWindow>(*this);
@@ -33,6 +32,7 @@ bool App::Initialize() {
     }
 
     taskbar_widget_->Show();
+    SyncAutoStart();
     return true;
 }
 
@@ -51,16 +51,17 @@ void App::ShowOptions() {
     }
 }
 
-void App::UpdateConfig(const AppConfig& config) {
+bool App::UpdateConfig(const AppConfig& config) {
     config_ = config;
-    config_manager_.SaveIfChanged(config_);
-    SyncAutoStart();
+    const bool config_saved = config_manager_.SaveIfChanged(config_);
+    const bool auto_start_synced = SyncAutoStart();
     if (taskbar_widget_ != nullptr) {
         taskbar_widget_->ApplyConfig();
     }
+    return config_saved && auto_start_synced;
 }
 
-void App::SyncAutoStart() const {
+bool App::SyncAutoStart() const {
     HKEY run_key = nullptr;
     if (::RegCreateKeyExW(HKEY_CURRENT_USER,
                           kRunKeyPath,
@@ -71,22 +72,27 @@ void App::SyncAutoStart() const {
                           nullptr,
                           &run_key,
                           nullptr) != ERROR_SUCCESS) {
-        return;
+        return false;
     }
 
+    LONG result = ERROR_SUCCESS;
     if (config_.auto_start) {
         const std::wstring command = L"\"" + module_path_ + L"\"";
-        ::RegSetValueExW(run_key,
-                         kRunValueName,
-                         0,
-                         REG_SZ,
-                         reinterpret_cast<const BYTE*>(command.c_str()),
-                         static_cast<DWORD>((command.size() + 1) * sizeof(wchar_t)));
+        result = ::RegSetValueExW(run_key,
+                                  kRunValueName,
+                                  0,
+                                  REG_SZ,
+                                  reinterpret_cast<const BYTE*>(command.c_str()),
+                                  static_cast<DWORD>((command.size() + 1) * sizeof(wchar_t)));
     } else {
-        ::RegDeleteValueW(run_key, kRunValueName);
+        result = ::RegDeleteValueW(run_key, kRunValueName);
+        if (result == ERROR_FILE_NOT_FOUND) {
+            result = ERROR_SUCCESS;
+        }
     }
 
     ::RegCloseKey(run_key);
+    return result == ERROR_SUCCESS;
 }
 
 void App::RequestExit() {

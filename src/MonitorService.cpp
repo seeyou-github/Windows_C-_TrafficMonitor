@@ -48,7 +48,11 @@ SystemSnapshot MonitorService::Sample(bool aggregate_connected_interfaces) {
 
     NetworkSample network_sample{};
     if (ReadNetworkCounters(network_sample, aggregate_connected_interfaces, snapshot.status_text)) {
-        if (has_previous_network_sample_ && network_sample.tick_ms > previous_network_sample_.tick_ms) {
+        if (has_previous_network_sample_ && network_sample.tick_ms > previous_network_sample_.tick_ms &&
+            network_sample.aggregate_mode == previous_network_sample_.aggregate_mode &&
+            network_sample.source_key == previous_network_sample_.source_key &&
+            network_sample.in_octets >= previous_network_sample_.in_octets &&
+            network_sample.out_octets >= previous_network_sample_.out_octets) {
             const double seconds =
                 static_cast<double>(network_sample.tick_ms - previous_network_sample_.tick_ms) / 1000.0;
             if (seconds > 0.0) {
@@ -115,6 +119,7 @@ bool MonitorService::ReadNetworkCounters(NetworkSample& sample,
     std::uint64_t total_in = 0;
     std::uint64_t total_out = 0;
     std::uint64_t best_sum = 0;
+    std::uint64_t source_key = 0;
     size_t usable_count = 0;
 
     for (ULONG i = 0; i < table->NumEntries; ++i) {
@@ -127,12 +132,14 @@ bool MonitorService::ReadNetworkCounters(NetworkSample& sample,
         if (aggregate_connected_interfaces) {
             total_in += row.InOctets;
             total_out += row.OutOctets;
+            source_key ^= row.InterfaceLuid.Value;
         } else {
             const std::uint64_t traffic_sum = row.InOctets + row.OutOctets;
             if (traffic_sum >= best_sum) {
                 best_sum = traffic_sum;
                 total_in = row.InOctets;
                 total_out = row.OutOctets;
+                source_key = row.InterfaceLuid.Value;
             }
         }
     }
@@ -140,6 +147,8 @@ bool MonitorService::ReadNetworkCounters(NetworkSample& sample,
     ::FreeMibTable(table);
     sample.in_octets = total_in;
     sample.out_octets = total_out;
+    sample.source_key = source_key;
+    sample.aggregate_mode = aggregate_connected_interfaces;
     sample.tick_ms = ::GetTickCount64();
     status_text = std::to_wstring(usable_count);
     return true;

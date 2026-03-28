@@ -21,14 +21,14 @@ public:
     int Run();
 
     void ShowOptions();
-    void UpdateConfig(const AppConfig& config);
+    bool UpdateConfig(const AppConfig& config);
     void RequestExit();
 
     HINSTANCE GetInstance() const { return instance_; }
     const AppConfig& GetConfig() const { return config_; }
 
 private:
-    void SyncAutoStart() const;
+    bool SyncAutoStart() const;
 
     HINSTANCE instance_ = nullptr;
     std::wstring module_path_;
