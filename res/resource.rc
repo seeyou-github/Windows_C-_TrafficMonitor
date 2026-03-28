@@ -1,0 +1,40 @@
+#pragma code_page(65001)
+#include <windows.h>
+#include "..\\src\\resource.h"
+
+IDR_MAIN_MENU MENU
+BEGIN
+    POPUP ""
+    BEGIN
+        MENUITEM "选项", IDM_OPTIONS
+        MENUITEM SEPARATOR
+        MENUITEM "退出", IDM_EXIT
+    END
+END
+
+STRINGTABLE
+BEGIN
+    IDS_APP_NAME, "任务栏网速监控"
+    IDS_MENU_OPTIONS, "选项"
+    IDS_MENU_EXIT, "退出"
+    IDS_OPTIONS_TITLE, "任务栏网速监控 - 选项"
+    IDS_OPTIONS_INTERVAL, "刷新间隔（毫秒，500-5000）"
+    IDS_OPTIONS_SAVE, "保存"
+    IDS_OPTIONS_CANCEL, "取消"
+    IDS_OPTIONS_NETMODE, "汇总所有已连接网卡流量"
+    IDS_OPTIONS_STATUS, ""
+    IDS_OPTIONS_FUTURE, ""
+    IDS_OPTIONS_SAVED, "配置已更新。"
+    IDS_INVALID_INTERVAL, "刷新间隔必须在 500 到 5000 毫秒之间。"
+    IDS_STATUS_MONITORING, "正在监控"
+    IDS_STATUS_EMBED_FAILED, "程序初始化失败，未能创建任务栏监控窗口。"
+    IDS_OPTIONS_FONT_SIZE, "字体大小（8-18）"
+    IDS_OPTIONS_FONT_COLOR, "字体颜色"
+    IDS_OPTIONS_PICK_COLOR, "选择颜色"
+    IDS_OPTIONS_BOTTOM_PADDING, "底边距（0-24）"
+    IDS_OPTIONS_LINE_HEIGHT, "行高（14-32）"
+    IDS_OPTIONS_BAR_COLOR, "进度条颜色"
+    IDS_APP_ALREADY_RUNNING, "程序已在运行，不能同时启动多个实例。"
+    IDS_OPTIONS_APPLY, "应用"
+    IDS_OPTIONS_HORIZONTAL_PADDING, "左右内边距（0-24）"
+END
