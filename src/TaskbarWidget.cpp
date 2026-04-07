@@ -62,6 +62,14 @@ TaskbarWidget::TaskbarWidget(App& app) : app_(app) {
 }
 
 TaskbarWidget::~TaskbarWidget() {
+    if (host_hwnd_ != nullptr && ::IsWindow(host_hwnd_)) {
+        ::DestroyWindow(host_hwnd_);
+        host_hwnd_ = nullptr;
+    }
+    if (hwnd_ != nullptr && ::IsWindow(hwnd_)) {
+        ::DestroyWindow(hwnd_);
+        hwnd_ = nullptr;
+    }
     if (font_ != nullptr) {
         ::DeleteObject(font_);
     }
@@ -78,6 +86,7 @@ TaskbarWidget::~TaskbarWidget() {
 
 bool TaskbarWidget::Create(HINSTANCE instance) {
     instance_ = instance;
+    taskbar_created_message_ = ::RegisterWindowMessageW(L"TaskbarCreated");
 
     WNDCLASSEXW wc{};
     wc.cbSize = sizeof(wc);
@@ -90,42 +99,50 @@ bool TaskbarWidget::Create(HINSTANCE instance) {
 
     ::RegisterClassExW(&wc);
 
+    WNDCLASSEXW host_wc{};
+    host_wc.cbSize = sizeof(host_wc);
+    host_wc.lpfnWndProc = HostWindowProc;
+    host_wc.hInstance = instance_;
+    host_wc.lpszClassName = L"TaskbarMonitorHostWindow";
+    ::RegisterClassExW(&host_wc);
+
     RecreateFont();
     UpdateBrushes();
-
-    hwnd_ = ::CreateWindowExW(
+    host_hwnd_ = ::CreateWindowExW(
         WS_EX_TOOLWINDOW,
-        wc.lpszClassName,
-        LoadStringResource(instance_, IDS_APP_NAME).c_str(),
-        WS_POPUP | WS_VISIBLE,
-        CW_USEDEFAULT,
-        CW_USEDEFAULT,
-        width_,
-        height_,
+        host_wc.lpszClassName,
+        L"TaskbarMonitorHost",
+        WS_OVERLAPPED,
+        0,
+        0,
+        0,
+        0,
         nullptr,
         nullptr,
         instance_,
         this);
-
-    if (hwnd_ != nullptr) {
-        HICON big_icon = LoadAppIcon(instance_, false);
-        HICON small_icon = LoadAppIcon(instance_, true);
-        ::SendMessageW(hwnd_, WM_SETICON, ICON_BIG, reinterpret_cast<LPARAM>(big_icon));
-        ::SendMessageW(hwnd_, WM_SETICON, ICON_SMALL, reinterpret_cast<LPARAM>(small_icon));
+    if (host_hwnd_ == nullptr) {
+        return false;
     }
 
+    CreateWidgetWindow();
     return hwnd_ != nullptr;
 }
 
 void TaskbarWidget::Show() {
+    if (hwnd_ == nullptr || !::IsWindow(hwnd_)) {
+        CreateWidgetWindow();
+    }
     InitializeWindowForTaskbar();
-    ::ShowWindow(hwnd_, SW_SHOWNOACTIVATE);
-    Refresh();
+    if (hwnd_ != nullptr && ::IsWindow(hwnd_)) {
+        ::ShowWindow(hwnd_, SW_SHOWNOACTIVATE);
+        Refresh();
+    }
 }
 
 void TaskbarWidget::Refresh() {
     snapshot_ = monitor_.Sample(app_.GetConfig().aggregate_connected_interfaces);
-    UpdateTaskbarPlacement();
+    EnsureAttachedToTaskbar();
     const ULONGLONG now = ::GetTickCount64();
     if (now - last_style_sample_tick_ >= 2000 || last_style_sample_tick_ == 0) {
         UpdateVisualStyleFromTaskbar();
@@ -177,6 +194,23 @@ LRESULT CALLBACK TaskbarWidget::WindowProc(HWND hwnd, UINT message, WPARAM w_par
     return ::DefWindowProcW(hwnd, message, w_param, l_param);
 }
 
+LRESULT CALLBACK TaskbarWidget::HostWindowProc(HWND hwnd, UINT message, WPARAM w_param, LPARAM l_param) {
+    TaskbarWidget* self = nullptr;
+    if (message == WM_NCCREATE) {
+        auto* create_struct = reinterpret_cast<CREATESTRUCTW*>(l_param);
+        self = static_cast<TaskbarWidget*>(create_struct->lpCreateParams);
+        ::SetWindowLongPtrW(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(self));
+    } else {
+        self = reinterpret_cast<TaskbarWidget*>(::GetWindowLongPtrW(hwnd, GWLP_USERDATA));
+    }
+
+    if (self != nullptr) {
+        return self->HandleHostMessage(hwnd, message, w_param, l_param);
+    }
+
+    return ::DefWindowProcW(hwnd, message, w_param, l_param);
+}
+
 LRESULT TaskbarWidget::HandleMessage(UINT message, WPARAM w_param, LPARAM l_param) {
     switch (message) {
     case WM_CREATE:
@@ -219,6 +253,7 @@ LRESULT TaskbarWidget::HandleMessage(UINT message, WPARAM w_param, LPARAM l_para
         break;
     case WM_DESTROY:
         ::KillTimer(hwnd_, kRefreshTimerId);
+        hwnd_ = nullptr;
         return 0;
     default:
         break;
@@ -227,8 +262,55 @@ LRESULT TaskbarWidget::HandleMessage(UINT message, WPARAM w_param, LPARAM l_para
     return ::DefWindowProcW(hwnd_, message, w_param, l_param);
 }
 
+LRESULT TaskbarWidget::HandleHostMessage(HWND hwnd, UINT message, WPARAM w_param, LPARAM l_param) {
+    if (taskbar_created_message_ != 0 && message == taskbar_created_message_) {
+        if (hwnd_ == nullptr || !::IsWindow(hwnd_)) {
+            CreateWidgetWindow();
+        }
+        Show();
+        return 0;
+    }
+
+    switch (message) {
+    case WM_DESTROY:
+        if (host_hwnd_ == hwnd) {
+            host_hwnd_ = nullptr;
+        }
+        return 0;
+    default:
+        break;
+    }
+
+    return ::DefWindowProcW(hwnd, message, w_param, l_param);
+}
+
+void TaskbarWidget::CreateWidgetWindow() {
+    hwnd_ = ::CreateWindowExW(
+        WS_EX_TOOLWINDOW,
+        L"TaskbarMonitorWidgetWindow",
+        LoadStringResource(instance_, IDS_APP_NAME).c_str(),
+        WS_POPUP | WS_VISIBLE,
+        CW_USEDEFAULT,
+        CW_USEDEFAULT,
+        width_,
+        height_,
+        nullptr,
+        nullptr,
+        instance_,
+        this);
+
+    if (hwnd_ != nullptr) {
+        HICON big_icon = LoadAppIcon(instance_, false);
+        HICON small_icon = LoadAppIcon(instance_, true);
+        ::SendMessageW(hwnd_, WM_SETICON, ICON_BIG, reinterpret_cast<LPARAM>(big_icon));
+        ::SendMessageW(hwnd_, WM_SETICON, ICON_SMALL, reinterpret_cast<LPARAM>(small_icon));
+    }
+}
+
 void TaskbarWidget::InitializeWindowForTaskbar() {
-    UpdateTaskbarPlacement();
+    if (!QueryTaskbarInfo(taskbar_hwnd_, taskbar_rect_, notify_rect_)) {
+        return;
+    }
 
     LONG_PTR style = ::GetWindowLongPtrW(hwnd_, GWL_STYLE);
     style &= ~static_cast<LONG_PTR>(WS_POPUP);
@@ -238,6 +320,27 @@ void TaskbarWidget::InitializeWindowForTaskbar() {
     ::SetParent(hwnd_, taskbar_hwnd_);
     ::SetWindowPos(hwnd_, HWND_TOP, 0, 0, width_, height_, SWP_FRAMECHANGED | SWP_NOACTIVATE);
     UpdateTaskbarPlacement();
+}
+
+bool TaskbarWidget::EnsureAttachedToTaskbar() {
+    HWND current_taskbar = nullptr;
+    RECT current_taskbar_rect{};
+    RECT current_notify_rect{};
+    if (!QueryTaskbarInfo(current_taskbar, current_taskbar_rect, current_notify_rect)) {
+        return false;
+    }
+
+    const HWND parent = ::GetParent(hwnd_);
+    if (current_taskbar != taskbar_hwnd_ || parent != current_taskbar) {
+        taskbar_hwnd_ = current_taskbar;
+        taskbar_rect_ = current_taskbar_rect;
+        notify_rect_ = current_notify_rect;
+        InitializeWindowForTaskbar();
+        return true;
+    }
+
+    UpdateTaskbarPlacement();
+    return true;
 }
 
 void TaskbarWidget::UpdateTaskbarPlacement() {

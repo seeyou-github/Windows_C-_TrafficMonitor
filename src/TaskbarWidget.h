@@ -32,8 +32,11 @@ private:
     static constexpr UINT_PTR kRefreshTimerId = 1;
 
     static LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM w_param, LPARAM l_param);
+    static LRESULT CALLBACK HostWindowProc(HWND hwnd, UINT message, WPARAM w_param, LPARAM l_param);
     LRESULT HandleMessage(UINT message, WPARAM w_param, LPARAM l_param);
+    LRESULT HandleHostMessage(HWND hwnd, UINT message, WPARAM w_param, LPARAM l_param);
 
+    void CreateWidgetWindow();
     void InitializeWindowForTaskbar();
     void UpdateTaskbarPlacement();
     bool QueryTaskbarInfo(HWND& taskbar, RECT& taskbar_rect, RECT& notify_rect);
@@ -49,9 +52,11 @@ private:
     bool IsHorizontalTaskbar() const;
     void RecreateFont();
     void UpdateBrushes();
+    bool EnsureAttachedToTaskbar();
 
     App& app_;
     HINSTANCE instance_ = nullptr;
+    HWND host_hwnd_ = nullptr;
     HWND hwnd_ = nullptr;
     HWND taskbar_hwnd_ = nullptr;
     RECT taskbar_rect_{};
@@ -72,4 +77,5 @@ private:
     int width_ = 176;
     int height_ = 98;
     bool horizontal_taskbar_ = true;
+    UINT taskbar_created_message_ = 0;
 };
